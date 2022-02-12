@@ -1,0 +1,9 @@
+## Python requirements for building documentation.
+##
+##     pip install --requirement=requirements.txt
+##
+sphinx
+sphinx_rtd_theme
+sphinxcontrib.httpdomain
+sphinx-autoapi
+numpydoc

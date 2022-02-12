@@ -1,0 +1,7 @@
+## Python requirements for running tests.
+##
+##    pip install --requirement=requirements.txt
+##
+pytest>=3.5
+pytest-mock
+pytest-timeout

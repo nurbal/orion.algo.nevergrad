@@ -1,0 +1,26 @@
+# General info
+include LICENSE
+include *.rst
+
+# Control and setup helpers
+
+# Exclude development helpers
+exclude tox.ini
+exclude *-requirements.txt
+exclude .pylintrc
+exclude codecov.yml
+exclude .mailmap
+exclude docs/src/_static/stub
+prune .github/
+
+# Include src, tests, docs
+recursive-include docs *.rst *.py *.gitkeep *.sh
+include docs/requirements.txt
+prune docs/build
+prune docs/src/reference
+recursive-include src *.py
+recursive-include scripts *.sh
+recursive-include tests *.py *.yaml *.json *.txt *.yml *.in LICENSE
+include tests/requirements.txt
+include versioneer.py
+include src/orion/algo/nevergrad/_version.py
