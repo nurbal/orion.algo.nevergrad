@@ -21,7 +21,7 @@ setup_args = dict(
         os.path.join(repo_root, "README.rst"), "rt", encoding="utf8"
     ).read(),
     license="BSD-3-Clause",
-    author=u"Epistimio",
+    author="Epistimio",
     author_email="xavier.bouthillier@mila.quebec",
     url="https://github.com/Epistimio/orion.algo.nevergrad",
     packages=["orion.algo.nevergrad"],
