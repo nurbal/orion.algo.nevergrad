@@ -32,7 +32,7 @@ setup_args = dict(
             "nevergrad_NevergradOptimizer = orion.algo.nevergrad.nevergradoptimizer:NevergradOptimizer"
         ],
     },
-    install_requires=["orion>=0.1.15", "numpy"],
+    install_requires=["orion>=0.1.15", "numpy", "nevergrad"],
     tests_require=tests_require,
     setup_requires=["setuptools", "pytest-runner>=2.0,<3dev"],
     extras_require=dict(test=tests_require),
