@@ -3,6 +3,7 @@
 MANIFEST
 build/
 dist/
+.eggs/
 *.egg-info/
 *.pyc
 *.pyo
