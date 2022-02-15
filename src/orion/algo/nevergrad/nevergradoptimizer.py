@@ -6,6 +6,79 @@ TODO: Write long description
 """
 import numpy
 from orion.algo.base import BaseAlgorithm
+import nevergrad as ng
+
+
+class SpaceConverter(dict):
+    def register(self, *key):
+        def deco(fn):
+            self[key] = fn
+            return fn
+        return deco
+
+    def __call__(self, space):
+        try:
+            return ng.p.Instrumentation(**{
+                name: self[dim.type, dim.prior_name](self, dim)
+                for name, dim in space.items()
+            })
+        except KeyError as exc:
+            raise KeyError(f"Dimension with type and prior: {exc.args[0]} cannot be converted to nevergrad.")
+
+
+to_ng_space = SpaceConverter()
+
+
+def _intshape(shape):
+    # ng.p.Array does not accept np.int64 in shapes, they have to be ints
+    return tuple(int(x) for x in shape)
+
+
+@to_ng_space.register("categorical", "choices")
+def _(self, dim):
+    assert not dim.shape
+    assert len(set(dim.prior.pk)) == 1
+    return ng.p.Choice(dim.interval())
+
+
+@to_ng_space.register("real", "uniform")
+def _(self, dim):
+    lower, upper = dim.interval()
+    if dim.shape:
+        return ng.p.Array(lower=lower, upper=upper, shape=_intshape(dim.shape))
+    else:
+        return ng.p.Scalar(lower=lower, upper=upper)
+
+
+@to_ng_space.register("integer", "int_uniform")
+def _(self, dim):
+    return self["real", "uniform"](self, dim).set_integer_casting()
+
+
+@to_ng_space.register("real", "reciprocal")
+def _(self, dim):
+    assert not dim.shape
+    lower, upper = dim.interval()
+    return ng.p.Log(lower=lower, upper=upper, exponent=2)
+
+
+@to_ng_space.register("integer", "int_reciprocal")
+def _(self, dim):
+    return self["real", "reciprocal"](self, dim).set_integer_casting()
+
+
+@to_ng_space.register("real", "normal")
+def _(self, dim):
+    breakpoint()
+
+
+@to_ng_space.register("fidelity", "None")
+def _(self, dim):
+    assert not dim.shape
+    assert dim.prior is None
+    _, upper = dim.interval()
+    # No equivalent to Fidelity space, so we always use the upper value
+    return upper
 
 
 class NevergradOptimizer(BaseAlgorithm):
@@ -26,7 +99,9 @@ class NevergradOptimizer(BaseAlgorithm):
     requires_shape = None
 
     def __init__(self, space, seed=None):
-        super(NevergradOptimizer, self).__init__(space, seed=seed)
+        self.param = to_ng_space(space)
+        self.algo = ng.optimizers.NGOpt(parametrization=self.param)
+        super().__init__(space, seed=seed)
 
     def seed_rng(self, seed):
         """Seed the state of the random number generator.
@@ -37,7 +112,9 @@ class NevergradOptimizer(BaseAlgorithm):
             Integer seed for the random number generator.
 
         """
-        # TODO: Adapt this to your algo
+        self.param.random_state.seed(seed)
+
+        # TODO: Remove
         self.rng = numpy.random.RandomState(seed)
 
     @property
