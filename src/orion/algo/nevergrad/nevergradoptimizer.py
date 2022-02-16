@@ -4,9 +4,11 @@
 
 TODO: Write long description
 """
-import numpy
-from orion.algo.base import BaseAlgorithm
+import pickle
+
 import nevergrad as ng
+from orion.algo.base import BaseAlgorithm
+from orion.core.utils.format_trials import dict_to_trial
 
 
 class SpaceConverter(dict):
@@ -14,16 +16,21 @@ class SpaceConverter(dict):
         def deco(fn):
             self[key] = fn
             return fn
+
         return deco
 
     def __call__(self, space):
         try:
-            return ng.p.Instrumentation(**{
-                name: self[dim.type, dim.prior_name](self, dim)
-                for name, dim in space.items()
-            })
+            return ng.p.Instrumentation(
+                **{
+                    name: self[dim.type, dim.prior_name](self, dim)
+                    for name, dim in space.items()
+                }
+            )
         except KeyError as exc:
-            raise KeyError(f"Dimension with type and prior: {exc.args[0]} cannot be converted to nevergrad.")
+            raise KeyError(
+                f"Dimension with type and prior: {exc.args[0]} cannot be converted to nevergrad."
+            )
 
 
 to_ng_space = SpaceConverter()
@@ -67,9 +74,9 @@ def _(self, dim):
     return self["real", "reciprocal"](self, dim).set_integer_casting()
 
 
-@to_ng_space.register("real", "normal")
+@to_ng_space.register("real", "norm")
 def _(self, dim):
-    breakpoint()
+    raise NotImplementedError()
 
 
 @to_ng_space.register("fidelity", "None")
@@ -98,9 +105,13 @@ class NevergradOptimizer(BaseAlgorithm):
     requires_dist = None
     requires_shape = None
 
-    def __init__(self, space, seed=None):
-        self.param = to_ng_space(space)
-        self.algo = ng.optimizers.NGOpt(parametrization=self.param)
+    def __init__(self, space, seed=None, budget=100, num_workers=10):
+        param = to_ng_space(space)
+        self.algo = ng.optimizers.NGOpt(
+            parametrization=param, budget=budget, num_workers=num_workers
+        )
+        self.algo.enable_pickling()
+        self._trial_mapping = {}
         super().__init__(space, seed=seed)
 
     def seed_rng(self, seed):
@@ -112,17 +123,13 @@ class NevergradOptimizer(BaseAlgorithm):
             Integer seed for the random number generator.
 
         """
-        self.param.random_state.seed(seed)
-
-        # TODO: Remove
-        self.rng = numpy.random.RandomState(seed)
+        self.algo.parametrization.random_state.seed(seed)
 
     @property
     def state_dict(self):
         """Return a state dict that can be used to reset the state of the algorithm."""
-        state_dict = super(NevergradOptimizer, self).state_dict
-        # TODO: Adapt this to your algo
-        state_dict["rng_state"] = self.rng.get_state()
+        state_dict = super().state_dict
+        state_dict["algo"] = pickle.dumps(self.algo)
         return state_dict
 
     def set_state(self, state_dict):
@@ -130,10 +137,33 @@ class NevergradOptimizer(BaseAlgorithm):
 
         :param state_dict: Dictionary representing state of an algorithm
         """
-        # TODO: Adapt this to your algo
-        super(NevergradOptimizer, self).set_state(state_dict)
-        self.seed_rng(0)
-        self.rng.set_state(state_dict["rng_state"])
+        super().set_state(state_dict)
+        self.algo = pickle.loads(state_dict["algo"])
+
+    def _ask(self):
+        x = self.algo.ask()
+        # TODO: See what x.value[0] means exactly and in what situations it
+        # might be something different from ()
+        assert x.value[0] == ()
+        new_trial = dict_to_trial(x.value[1], self.space)
+        new_trial = self.format_trial(new_trial)
+        self._trial_mapping[new_trial.id] = x
+        self.register(new_trial)
+        return new_trial
+
+    def _can_produce(self):
+        if self.is_done:
+            return False
+
+        algo = self.algo
+        is_sequential = algo.no_parallelization
+        if not is_sequential and hasattr(algo, "optim"):
+            is_sequential = algo.optim.no_parallelization
+
+        if is_sequential and algo.num_ask > (algo.num_tell - algo.num_tell_not_asked):
+            return False
+
+        return True
 
     def suggest(self, num):
         """Suggest a `num`ber of new sets of parameters.
@@ -159,15 +189,9 @@ class NevergradOptimizer(BaseAlgorithm):
         New parameters must be compliant with the problem's domain `orion.algo.space.Space`.
 
         """
-        # TODO: Adapt this to your algo
         trials = []
-        while len(trials) < num and not self.is_done:
-            seed = tuple(self.rng.randint(0, 1000000, size=3))
-            new_trial = self.format_trial(self.space.sample(1, seed=seed)[0])
-            if not self.has_suggested(new_trial):
-                self.register(new_trial)
-                trials.append(new_trial)
-
+        while len(trials) < num and self._can_produce():
+            trials.append(self._ask())
         return trials
 
     def observe(self, trials):
@@ -181,8 +205,14 @@ class NevergradOptimizer(BaseAlgorithm):
            Trials from a `orion.algo.space.Space`.
 
         """
-        # TODO: Adapt this to your algo or remove if base implementation is fine.
-        super(NevergradOptimizer, self).observe(trials)
+        for trial in trials:
+            if trial.id in self._trial_mapping:
+                original = self._trial_mapping[trial.id]
+            else:
+                original = self.algo.parametrization.spawn_child(((), trial.params))
+            self.algo.tell(original, trial.objective.value)
+
+        super().observe(trials)
 
     @property
     def is_done(self):
