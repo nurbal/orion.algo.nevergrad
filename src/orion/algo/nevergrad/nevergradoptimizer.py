@@ -12,10 +12,14 @@ from orion.core.utils.format_trials import dict_to_trial
 
 
 class SpaceConverter(dict):
-    def register(self, *key):
-        def deco(fn):
-            self[key] = fn
-            return fn
+    """Convert Orion's search space to a different format."""
+
+    def register(self, typ, prior):
+        """Register a conversion function for the given type and prior."""
+
+        def deco(func):
+            self[typ, prior] = func
+            return func
 
         return deco
 
@@ -42,14 +46,16 @@ def _intshape(shape):
 
 
 @to_ng_space.register("categorical", "choices")
-def _(self, dim):
+def _(_, dim):
+    if dim.shape:
+        raise NotImplementedError("Array of Categorical cannot be converted.")
     assert not dim.shape
     assert len(set(dim.prior.pk)) == 1
     return ng.p.Choice(dim.interval())
 
 
 @to_ng_space.register("real", "uniform")
-def _(self, dim):
+def _(_, dim):
     lower, upper = dim.interval()
     if dim.shape:
         return ng.p.Array(lower=lower, upper=upper, shape=_intshape(dim.shape))
@@ -63,7 +69,7 @@ def _(self, dim):
 
 
 @to_ng_space.register("real", "reciprocal")
-def _(self, dim):
+def _(_, dim):
     assert not dim.shape
     lower, upper = dim.interval()
     return ng.p.Log(lower=lower, upper=upper, exponent=2)
@@ -75,12 +81,12 @@ def _(self, dim):
 
 
 @to_ng_space.register("real", "norm")
-def _(self, dim):
+def _(_, dim):
     raise NotImplementedError()
 
 
 @to_ng_space.register("fidelity", "None")
-def _(self, dim):
+def _(_, dim):
     assert not dim.shape
     assert dim.prior is None
     _, upper = dim.interval()
@@ -112,7 +118,7 @@ class NevergradOptimizer(BaseAlgorithm):
         )
         self.algo.enable_pickling()
         self._trial_mapping = {}
-        super().__init__(space, seed=seed)
+        super().__init__(space, seed=seed, budget=budget, num_workers=num_workers)
 
     def seed_rng(self, seed):
         """Seed the state of the random number generator.
@@ -141,13 +147,11 @@ class NevergradOptimizer(BaseAlgorithm):
         self.algo = pickle.loads(state_dict["algo"])
 
     def _ask(self):
-        x = self.algo.ask()
-        # TODO: See what x.value[0] means exactly and in what situations it
-        # might be something different from ()
-        assert x.value[0] == ()
-        new_trial = dict_to_trial(x.value[1], self.space)
+        suggestion = self.algo.ask()
+        assert not suggestion.args
+        new_trial = dict_to_trial(suggestion.kwargs, self.space)
         new_trial = self.format_trial(new_trial)
-        self._trial_mapping[new_trial.id] = x
+        self._trial_mapping[new_trial.id] = suggestion
         self.register(new_trial)
         return new_trial
 
@@ -206,16 +210,11 @@ class NevergradOptimizer(BaseAlgorithm):
 
         """
         for trial in trials:
-            if trial.id in self._trial_mapping:
-                original = self._trial_mapping[trial.id]
-            else:
-                original = self.algo.parametrization.spawn_child(((), trial.params))
-            self.algo.tell(original, trial.objective.value)
+            if trial.status == "completed":
+                if trial.id in self._trial_mapping:
+                    original = self._trial_mapping[trial.id]
+                else:
+                    original = self.algo.parametrization.spawn_child(((), trial.params))
+                self.algo.tell(original, trial.objective.value)
 
         super().observe(trials)
-
-    @property
-    def is_done(self):
-        """Return True, if an algorithm holds that there can be no further improvement."""
-        # NOTE: Drop if base implementation is fine.
-        return super(NevergradOptimizer, self).is_done
