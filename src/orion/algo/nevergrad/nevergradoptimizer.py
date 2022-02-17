@@ -70,7 +70,8 @@ def _(self, dim):
 
 @to_ng_space.register("real", "reciprocal")
 def _(_, dim):
-    assert not dim.shape
+    if dim.shape:
+        raise NotImplementedError("Array with reciprocal prior cannot be converted.")
     lower, upper = dim.interval()
     return ng.p.Log(lower=lower, upper=upper, exponent=2)
 
@@ -82,7 +83,9 @@ def _(self, dim):
 
 @to_ng_space.register("real", "norm")
 def _(_, dim):
-    raise NotImplementedError()
+    if dim.shape:
+        raise NotImplementedError("Array with normal prior cannot be converted.")
+    return ng.p.Scalar(init=dim.prior.mean()).set_mutation(sigma=dim.prior.std())
 
 
 @to_ng_space.register("fidelity", "None")

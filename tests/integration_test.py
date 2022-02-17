@@ -1,5 +1,7 @@
 """Perform integration tests for `orion.algo.nevergrad`."""
-from orion.testing.algo import BaseAlgoTests
+from orion.benchmark.task.branin import Branin
+from orion.core.utils import backward
+from orion.testing.algo import BaseAlgoTests, phase
 
 
 # Test suite for algorithms. You may reimplement some of the tests to adapt them to your algorithm
@@ -12,8 +14,44 @@ class TestNevergradOptimizer(BaseAlgoTests):
     algo_name = "nevergradoptimizer"
     config = {
         "seed": 1234,  # Because this is so random
-        # Add other arguments for your algorithm to pass test_configuration
+        "budget": 100,
+        "num_workers": 10,
     }
+
+    @phase
+    def test_normal_data(self, mocker, num, attr):
+        """Test that algorithm supports normal dimensions"""
+        self.assert_dim_type_supported(mocker, num, attr, {"x": "normal(2, 5)"})
+
+    def get_num(self, num):
+        return min(num, 5)
+
+    def test_optimize_branin(self):
+        """Test that algorithm optimizes somehow (this is on-par with random search)"""
+        MAX_TRIALS = 20
+        task = Branin()
+        space = self.create_space(task.get_search_space())
+        algo = self.create_algo(config={}, space=space)
+        algo.algorithm.max_trials = MAX_TRIALS
+        safe_guard = 0
+        trials = []
+        objectives = []
+        while trials or not algo.is_done:
+            if safe_guard >= MAX_TRIALS:
+                break
+
+            if not trials:
+                remaining = MAX_TRIALS - len(objectives)
+                trials = algo.suggest(self.get_num(remaining))
+
+            trial = trials.pop(0)
+            results = task(trial.params["x"])
+            objectives.append(results[0]["value"])
+            backward.algo_observe(algo, [trial], [dict(objective=objectives[-1])])
+            safe_guard += 1
+
+        assert algo.is_done
+        assert min(objectives) <= 10
 
 
 # You may add other phases for test.
