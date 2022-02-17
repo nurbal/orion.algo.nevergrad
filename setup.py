@@ -7,6 +7,7 @@ from setuptools import setup
 
 import versioneer
 
+import nevergrad as ng
 
 repo_root = os.path.dirname(os.path.abspath(__file__))
 
@@ -28,9 +29,7 @@ setup_args = dict(
     package_dir={"": "src"},
     include_package_data=True,
     entry_points={
-        "BaseAlgorithm": [
-            "nevergrad_NevergradOptimizer = orion.algo.nevergrad.nevergradoptimizer:NevergradOptimizer"
-        ],
+        "BaseAlgorithm": [],
     },
     install_requires=["orion>=0.1.15", "numpy", "nevergrad"],
     tests_require=tests_require,
@@ -40,6 +39,12 @@ setup_args = dict(
     # from https://github.com/pypa/sample-namespace-packages
     zip_safe=False,
 )
+
+# Dynamically create entry points using nevergrad optimizers registry
+for algo_name in ng.optimizers.registry.keys():
+    setup_args["entry_points"]["BaseAlgorithm"].append(
+        'nevergrad_{name} = orion.algo.nevergrad.nevergradoptimizer:Nevergrad_{name}'.format(namelow=algo_name.lower(),name=algo_name)
+    )
 
 setup_args["keywords"] = [
     "Machine Learning",

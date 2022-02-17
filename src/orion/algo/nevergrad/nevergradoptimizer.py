@@ -94,7 +94,7 @@ def _(_, dim):
     return upper
 
 
-class NevergradOptimizer(BaseAlgorithm):
+class Nevergrad_Base(BaseAlgorithm):
     """TODO: Class docstring
 
     Parameters
@@ -111,9 +111,10 @@ class NevergradOptimizer(BaseAlgorithm):
     requires_dist = None
     requires_shape = None
 
-    def __init__(self, space, seed=None, budget=100, num_workers=10):
+    def __init__(self, space, algo="NGOpt", seed=None, budget=100, num_workers=10):
         param = to_ng_space(space)
-        self.algo = ng.optimizers.NGOpt(
+        # self.algo = ng.optimizers.NGOpt(
+        self.algo = ng.optimizers.registry[algo](
             parametrization=param, budget=budget, num_workers=num_workers
         )
         self.algo.enable_pickling()
@@ -218,3 +219,22 @@ class NevergradOptimizer(BaseAlgorithm):
                 self.algo.tell(original, trial.objective.value)
 
         super().observe(trials)
+
+# class Nevergrad_NGOpt(Nevergrad_Base):
+#     def __init__(self, space, seed=None, budget=100, num_workers=10):
+#         super().__init__(space=space,algo="NGOpt",seed=seed,budget=budget,num_workers=num_workers)
+
+def NgOptClassFactory(algoname,baseclass=Nevergrad_Base):
+    def __init__(self, space, seed=None, budget=100, num_workers=10):
+        baseclass.__init__(self,space=space,algo=algoname,seed=seed,budget=budget,num_workers=num_workers)
+    newclass = type("Nevergrad_{name}".format(name=algoname), (baseclass,),{"__init__": __init__})
+    return newclass
+
+def CreateNgOptimizerClass(algoname):
+    classname = "Nevergrad_{name}".format(name=algoname)
+    globals()[classname]=NgOptClassFactory(algoname);
+
+# create ALL the optimizer classes of NeverGrad
+for algo_name in ng.optimizers.registry.keys():
+    CreateNgOptimizerClass(algo_name)
+
