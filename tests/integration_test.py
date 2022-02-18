@@ -5,13 +5,15 @@ from orion.benchmark.task.branin import Branin
 from orion.core.utils import backward
 from orion.testing.algo import BaseAlgoTests, phase
 
-# ModelNames = ng.optimizers.registry.keys()
-ModelNames = ["NGOpt", "RandomSearch"]
+ModelNames = ng.optimizers.registry.keys()
+# ModelNames = ["NGOpt", "RandomSearch"]
 
 
 @pytest.fixture(autouse=True, params=ModelNames)
 def _config(request):
     """ Fixture that parametrizes the configuration used in the tests below. """
+    if ng.optimizers.registry[request.param].no_parallelization:
+        TestNevergradOptimizer.config["num_workers"] = 1
     TestNevergradOptimizer.config["model_name"] = request.param
 
 

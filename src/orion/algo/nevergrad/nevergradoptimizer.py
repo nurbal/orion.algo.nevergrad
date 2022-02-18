@@ -125,7 +125,13 @@ class NevergradOptimizer(BaseAlgorithm):
         )
         self.algo.enable_pickling()
         self._trial_mapping = {}
-        super().__init__(space, seed=seed, budget=budget, num_workers=num_workers)
+        super().__init__(
+            space,
+            model_name=model_name,
+            seed=seed,
+            budget=budget,
+            num_workers=num_workers,
+        )
 
     def seed_rng(self, seed):
         """Seed the state of the random number generator.
