@@ -49,8 +49,10 @@ def _intshape(shape):
 def _(_, dim):
     if dim.shape:
         raise NotImplementedError("Array of Categorical cannot be converted.")
-    assert not dim.shape
-    assert len(set(dim.prior.pk)) == 1
+    if len(set(dim.prior.pk)) != 1:
+        raise NotImplementedError(
+            "All categories in Categorical must have the same probability."
+        )
     return ng.p.Choice(dim.interval())
 
 
@@ -90,8 +92,8 @@ def _(_, dim):
 
 @to_ng_space.register("fidelity", "None")
 def _(_, dim):
-    assert not dim.shape
-    assert dim.prior is None
+    if dim.shape:
+        raise NotImplementedError("Array of Fidelity cannot be converted.")
     _, upper = dim.interval()
     # No equivalent to Fidelity space, so we always use the upper value
     return upper
@@ -151,10 +153,15 @@ class NevergradOptimizer(BaseAlgorithm):
 
     def _ask(self):
         suggestion = self.algo.ask()
-        assert not suggestion.args
+        if suggestion.args:
+            raise RuntimeError(
+                "Nevergrad sampled a trial with args but this should never happen."
+                " Please report this issue at"
+                " https://github.com/Epistimio/orion.algo.nevergrad/issues"
+            )
         new_trial = dict_to_trial(suggestion.kwargs, self.space)
         new_trial = self.format_trial(new_trial)
-        self._trial_mapping[new_trial.id] = suggestion
+        self._trial_mapping[self.get_id(new_trial)] = suggestion
         self.register(new_trial)
         return new_trial
 
@@ -214,8 +221,9 @@ class NevergradOptimizer(BaseAlgorithm):
         """
         for trial in trials:
             if trial.status == "completed":
-                if trial.id in self._trial_mapping:
-                    original = self._trial_mapping[trial.id]
+                tid = self.get_id(trial)
+                if tid in self._trial_mapping:
+                    original = self._trial_mapping[tid]
                 else:
                     original = self.algo.parametrization.spawn_child(((), trial.params))
                 self.algo.tell(original, trial.objective.value)
