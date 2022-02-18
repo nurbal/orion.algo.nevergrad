@@ -28,7 +28,7 @@ class TestNevergradOptimizer(BaseAlgoTests):
 
     def test_optimize_branin(self):
         """Test that algorithm optimizes somehow (this is on-par with random search)"""
-        MAX_TRIALS = 20
+        MAX_TRIALS = 20  # pylint: ignore=invalid-name
         task = Branin()
         space = self.create_space(task.get_search_space())
         algo = self.create_algo(config={}, space=space)
