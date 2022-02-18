@@ -116,9 +116,11 @@ class NevergradOptimizer(BaseAlgorithm):
     requires_dist = None
     requires_shape = None
 
-    def __init__(self, space, seed=None, budget=100, num_workers=10):
+    def __init__(
+        self, space, model_name="NGOpt", seed=None, budget=100, num_workers=10
+    ):
         param = to_ng_space(space)
-        self.algo = ng.optimizers.NGOpt(
+        self.algo = ng.optimizers.registry[model_name](
             parametrization=param, budget=budget, num_workers=num_workers
         )
         self.algo.enable_pickling()

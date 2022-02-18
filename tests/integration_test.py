@@ -1,7 +1,18 @@
 """Perform integration tests for `orion.algo.nevergrad`."""
+import nevergrad as ng
+import pytest
 from orion.benchmark.task.branin import Branin
 from orion.core.utils import backward
 from orion.testing.algo import BaseAlgoTests, phase
+
+# ModelNames = ng.optimizers.registry.keys()
+ModelNames = ["NGOpt", "RandomSearch"]
+
+
+@pytest.fixture(autouse=True, params=ModelNames)
+def _config(request):
+    """ Fixture that parametrizes the configuration used in the tests below. """
+    TestNevergradOptimizer.config["model_name"] = request.param
 
 
 # Test suite for algorithms. You may reimplement some of the tests to adapt them to your algorithm
