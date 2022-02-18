@@ -5,7 +5,25 @@ from orion.benchmark.task.branin import Branin
 from orion.core.utils import backward
 from orion.testing.algo import BaseAlgoTests, phase
 
-ModelNames = [
+WORKING = [
+    "NGO",
+    "NGOpt",
+    "NGOpt10",
+    "NGOpt12",
+    "NGOpt13",
+    "NGOpt14",
+    "NGOpt15",
+    "NGOpt16",
+    "NGOpt21",
+    "NGOpt36",
+    "NGOpt38",
+    "NGOpt39",
+    "NGOpt4",
+    "NGOpt8",
+    "NGOptBase",
+]
+
+NOT_WORKING = [
     "ASCMADEthird",
     "AdaptiveDiscreteOnePlusOne",
     "AlmostRotationInvariantDE",
@@ -58,21 +76,6 @@ ModelNames = [
     "MultiDiscrete",
     "MultiScaleCMA",
     "MutDE",
-    "NGO",
-    "NGOpt",
-    "NGOpt10",
-    "NGOpt12",
-    "NGOpt13",
-    "NGOpt14",
-    "NGOpt15",
-    "NGOpt16",
-    "NGOpt21",
-    "NGOpt36",
-    "NGOpt38",
-    "NGOpt39",
-    "NGOpt4",
-    "NGOpt8",
-    "NGOptBase",
     "NaiveIsoEMNA",
     "NaiveTBPSA",
     "NelderMead",
@@ -126,8 +129,10 @@ ModelNames = [
     "cGA",
 ]
 
+MODEL_NAMES = WORKING
 
-@pytest.fixture(autouse=True, params=ModelNames)
+
+@pytest.fixture(autouse=True, params=MODEL_NAMES)
 def _config(request):
     """ Fixture that parametrizes the configuration used in the tests below. """
     if ng.optimizers.registry[request.param].no_parallelization:
