@@ -34,7 +34,8 @@ setup_args = dict(
     },
     install_requires=[
         "orion>=0.1.15",
-        "nevergrad@git+https://github.com/facebookresearch/nevergrad.git",
+        "nevergrad",
+        # "nevergrad@git+https://github.com/facebookresearch/nevergrad.git",
     ],
     tests_require=tests_require,
     setup_requires=["setuptools", "pytest-runner>=2.0,<3dev"],
