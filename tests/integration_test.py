@@ -136,8 +136,11 @@ MODEL_NAMES = WORKING
 def _config(request):
     """ Fixture that parametrizes the configuration used in the tests below. """
     if ng.optimizers.registry[request.param].no_parallelization:
-        TestNevergradOptimizer.config["num_workers"] = 1
+        num_workers = 1
+    else:
+        num_workers = 10
     TestNevergradOptimizer.config["model_name"] = request.param
+    TestNevergradOptimizer.config["num_workers"] = num_workers
 
 
 # Test suite for algorithms. You may reimplement some of the tests to adapt them to your algorithm
@@ -151,7 +154,6 @@ class TestNevergradOptimizer(BaseAlgoTests):
     config = {
         "seed": 1234,  # Because this is so random
         "budget": 100,
-        "num_workers": 10,
     }
 
     @phase
