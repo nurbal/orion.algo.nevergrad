@@ -159,6 +159,24 @@ class NevergradOptimizer(BaseAlgorithm):
         super().set_state(state_dict)
         self.algo = pickle.loads(state_dict["algo"])
 
+    def _associate_trial(self, trial, suggestion):
+        """Associate a trial with a Nevergrad suggestion.
+
+        Returns True if the trial was not seen before, false otherwise.
+        """
+        tid = self.get_id(trial)
+        seen = tid in self._trial_mapping
+        if seen:
+            orig_trial, existing = self._trial_mapping[tid]
+            if orig_trial.status == "completed":
+                self.algo.tell(suggestion, orig_trial.objective.value)
+            else:
+                existing.append(suggestion)
+
+        else:
+            self._trial_mapping[tid] = (trial, [suggestion])
+        return not seen
+
     def _ask(self):
         suggestion = self.algo.ask()
         if suggestion.args:
@@ -168,10 +186,11 @@ class NevergradOptimizer(BaseAlgorithm):
                 " https://github.com/Epistimio/orion.algo.nevergrad/issues"
             )
         new_trial = dict_to_trial(suggestion.kwargs, self.space)
-        new_trial = self.format_trial(new_trial)
-        self._trial_mapping[self.get_id(new_trial)] = suggestion
-        self.register(new_trial)
-        return new_trial
+        if self._associate_trial(new_trial, suggestion):
+            self.register(new_trial)
+            return new_trial
+        else:
+            return None
 
     def _can_produce(self):
         if self.is_done:
@@ -213,7 +232,9 @@ class NevergradOptimizer(BaseAlgorithm):
         """
         trials = []
         while len(trials) < num and self._can_produce():
-            trials.append(self._ask())
+            trial = self._ask()
+            if trial is not None:
+                trials.append(trial)
         return trials
 
     def observe(self, trials):
@@ -231,9 +252,12 @@ class NevergradOptimizer(BaseAlgorithm):
             if trial.status == "completed":
                 tid = self.get_id(trial)
                 if tid in self._trial_mapping:
-                    original = self._trial_mapping[tid]
+                    _, suggestions = self._trial_mapping[tid]
                 else:
-                    original = self.algo.parametrization.spawn_child(((), trial.params))
-                self.algo.tell(original, trial.objective.value)
+                    sugg = self.algo.parametrization.spawn_child(((), trial.params))
+                    suggestions = [sugg]
+                for suggestion in suggestions:
+                    self.algo.tell(suggestion, trial.objective.value)
+                self._trial_mapping[tid] = (trial, [])
 
         super().observe(trials)
